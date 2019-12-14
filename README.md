@@ -1,6 +1,6 @@
 # NTI_Part2_CV
-### 4.2 task
-# Get started
+# 4.2 task
+## Get started
 Open cmd and write
 > python detect_shapes.py --logPath {log file} --i1 {image 1} --i2 {image 2} --i3 {image 3}
 
