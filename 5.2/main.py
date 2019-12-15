@@ -6,9 +6,27 @@ import copy
 
 from pyimagesearch.shapedetector import ShapeDetector
 
-THRESHOLD = 50
+OBJECT_PARAMS = []
 
-def removeContrast(inputField:np.array, r:int, c:int):
+with open("log.txt", "r") as file:
+	lines = file.readlines()
+	print(lines)
+	for line in lines:
+		params = line.split(":")
+
+		try:
+			pos = list(map(int, params[0][params[0].find("(") + 1 : params[0].find(")")].split(",")))
+			
+			value = int(params[1])
+		except: continue
+
+		OBJECT_PARAMS.append([pos, value])
+
+print(OBJECT_PARAMS)
+
+THRESHOLD = 200
+
+def getPiece(inputField:np.array, r:int, c:int):
 	field = copy.deepcopy(inputField[r * 200:(r + 1) * 200, c * 200:(c + 1) * 200])
 
 	return field
@@ -20,15 +38,32 @@ def get_winner(field:np.array):
 	
 	field /= np.amax(maxValue)
 
+	gridField = field
+	
+	for i in range(0,100):
+		gridField = cv2.line(gridField, (0,i*200), (2000,i*200), (255,255,0), 1)
+		gridField = cv2.line(gridField, (i*200,0), (i*200,2000), (255,255,0), 1)
+	
+	cv2.imshow("Image", gridField)
+	cv2.waitKey(0)
+
 	for i in range(10):
 		for j in range(10):
 			print(i, j)
-			piece = removeContrast(field, i, j)
+			piece = getPiece(field, i, j)
 
 			piece *= 255
 			piece = piece.astype(np.uint8)
+			
+			threshold = THRESHOLD
 
-			thresh = cv2.threshold(piece, THRESHOLD, 255, cv2.THRESH_BINARY)[1]
+			for obj in OBJECT_PARAMS:
+				if (obj[0] == [i, j]):
+					threshold = obj[1]
+
+			print("Threshold - " + str(threshold))
+			
+			thresh = cv2.threshold(piece, threshold, 255, cv2.THRESH_BINARY)[1]
 
 			cv2.imshow("Image", thresh)
 			cv2.waitKey(0)
@@ -36,7 +71,7 @@ def get_winner(field:np.array):
 			cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 			cnts = imutils.grab_contours(cnts)
 
-			shapeDetector = ShapeDetector(0.1)
+			shapeDetector = ShapeDetector(0.16)
 
 			if (len(cnts) > 0):
 
