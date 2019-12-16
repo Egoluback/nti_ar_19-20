@@ -31,6 +31,23 @@ def getPiece(inputField:np.array, r:int, c:int):
 
 	return field
 
+def getAverageBright(piece: np.array):
+	return piece.sum() / piece.size
+
+def getThreshold(piece: np.array):
+	averageBright = getAverageBright(piece)
+
+	if (averageBright > 0 and averageBright <= 50):
+		return 70
+	elif (averageBright > 50 and averageBright <= 87):
+		return 100
+	elif (averageBright > 87 and averageBright <= 150):
+		return 150
+	elif (averageBright > 150 and averageBright <= 200):
+		return 200
+	elif (averageBright > 200 and averageBright <= 300):
+		return 250
+
 def get_winner(field:np.array):
 	cv2.imshow("Image", field / np.amax(field))
 	
@@ -40,7 +57,7 @@ def get_winner(field:np.array):
 
 	gridField = field
 	
-	for i in range(0,100):
+	for i in range(0, 100):
 		gridField = cv2.line(gridField, (0,i*200), (2000,i*200), (255,255,0), 1)
 		gridField = cv2.line(gridField, (i*200,0), (i*200,2000), (255,255,0), 1)
 	
@@ -55,11 +72,13 @@ def get_winner(field:np.array):
 			piece *= 255
 			piece = piece.astype(np.uint8)
 			
-			threshold = THRESHOLD
+			threshold = getThreshold(piece)
 
-			for obj in OBJECT_PARAMS:
-				if (obj[0] == [i, j]):
-					threshold = obj[1]
+			print(threshold, getAverageBright(piece))
+
+			# for obj in OBJECT_PARAMS:
+			# 	if (obj[0] == [i, j]):
+			# 		threshold = obj[1]
 
 			print("Threshold - " + str(threshold))
 			
@@ -85,5 +104,5 @@ def get_winner(field:np.array):
 
 
 if __name__ == "__main__":
-	arr = np.load("example1.npy")
+	arr = np.load("example2.npy")
 	print(get_winner(arr))
