@@ -8,116 +8,56 @@ from accessify import private
 
 from pyimagesearch.shapedetector import ShapeDetector
 
-OBJECT_PARAMS = []
-
-with open("log.txt", "r") as file:
-	lines = file.readlines()
-	print(lines)
-	for line in lines:
-		params = line.split(":")
-
-		try:
-			pos = list(map(int, params[0][params[0].find("(") + 1 : params[0].find(")")].split(",")))
-			
-			value = int(params[1])
-		except: continue
-
-		OBJECT_PARAMS.append([pos, value])
-
-# print(OBJECT_PARAMS)
-
-THRESHOLD = 200
-
+#класс выделения фигур из изображения
 class ShapesManager:
-    def __init__(self, filePath):
-        self.filePath = filePath
-
-        self.field = np.load(self.filePath)
+    def __init__(self, npy_data, size):
+        self.field = npy_data
+        self.field /= np.amax(self.field)
+        
+        self.size = size
     
+    #вырезка сегмента поля с заданными координатами
     @private
     def getPiece(self, inputField:np.array, r:int, c:int):
-        field = copy.deepcopy(inputField[r * 200:(r + 1) * 200, c * 200:(c + 1) * 200])
-
+        field = copy.deepcopy(inputField[r * self.size:(r + 1) * self.size, c * self.size:(c + 1) * self.size])
         return field
 
-    @private
-    def getAverageBright(self, piece: np.array):
-        return piece.sum() / piece.size
-
-    @private
-    def getThreshold(self, piece: np.array):
-        averageBright = self.getAverageBright(piece)
-
-        if (averageBright > 0 and averageBright <= 50):
-            return 70
-        elif (averageBright > 50 and averageBright <= 87):
-            return 100
-        elif (averageBright > 87 and averageBright <= 150):
-            return 150
-        elif (averageBright > 150 and averageBright <= 200):
-            return 200
-        elif (averageBright > 200 and averageBright <= 300):
-            return 250
-
+    #получение поля 10х10 с закодированными кубитоклобусами
     def GetShapes(self):
-        shapes = []
-        
-        cv2.imshow("Image", self.field / np.amax(self.field))
-        
-        maxValue = np.amax(self.field)
-        
-        self.field /= np.amax(maxValue)
+        shapes = [[0] * 10 for i in range(10)]
 
-        gridField = self.field
-        
-        for i in range(0, 100):
-            gridField = cv2.line(gridField, (0,i*200), (2000,i*200), (255,255,0), 1)
-            gridField = cv2.line(gridField, (i*200,0), (i*200,2000), (255,255,0), 1)
-        
-        cv2.imshow("Image", gridField)
-        cv2.waitKey(0)
+        fieldCopy = self.field
+        fieldCopy *= 255
+        fieldCopy = fieldCopy.astype(np.uint8)
 
+        #перебор сегментов изображения в масштабе игрового поля 10х10
         for i in range(10):
             for j in range(10):
-                print(i, j)
-                piece = self.getPiece(self.field, i, j)
-
-                piece *= 255
-                piece = piece.astype(np.uint8)
+                #очередной сегмент
+                piece = self.getPiece(fieldCopy, i, j)
+                # пройдемся адаптивной бинаризацией с magicnumbers 95 и -5 :) для удаления засветов 
+                thresholdPiece = cv2.adaptiveThreshold(piece, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 95, -5)
+                # устраиваем морфологией перлхарбор мусору
+                morphologyPiece = thresholdPiece
+                #контрольный в голову. т.к. всяческая контра может засесть по углам и сидеть там в засаде
+                cv2.floodFill(thresholdPiece, None, (1,1), 0)
+                cv2.floodFill(thresholdPiece, None, (self.size-1,1), 0)
+                cv2.floodFill(thresholdPiece, None, (1,self.size-1), 0)
+                cv2.floodFill(thresholdPiece, None, (self.size-1,self.size-1), 0)
+                morphologyPiece = cv2.morphologyEx(thresholdPiece, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15)))
                 
-                threshold = self.getThreshold(piece)
-
-                print(threshold, self.getAverageBright(piece))
-
-                # for obj in OBJECT_PARAMS:
-                # 	if (obj[0] == [i, j]):
-                # 		threshold = obj[1]
-                
-                thresh = cv2.threshold(piece, threshold, 255, cv2.THRESH_BINARY)[1]
-
-                cv2.imshow("Image", thresh)
-                cv2.waitKey(0)
-
-                cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                # и вот наконец находим контуры
+                cnts = cv2.findContours(morphologyPiece.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                 cnts = imutils.grab_contours(cnts)
+                # запускаем детектор полигонов с точностью 0.04 - выдает квадраты (сквееры), трапеции(триги) и прочее(секлы)
+                shapeDetector = ShapeDetector(0.04, self.size)
 
-                shapeDetector = ShapeDetector(0.16)
-
-                result = 0
-
+                resultShape = 0
+                # если в сегменте что-то есть
                 if (len(cnts) > 0):
-                    print("Object spotted")
-
-                    result = shapeDetector.detect(cnts[0])
+                    # получаем тип полигона
+                    resultShape = shapeDetector.detect(cnts[0])
+                    if (resultShape == "unidentified"): continue
                     
-                    cv2.putText(thresh, str(result), (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-                    cv2.imshow("Image", thresh)
-                    cv2.waitKey()
-                shapes.append(result)
-
+                    shapes[i][j] = int(resultShape)
         return shapes
-
-
-if __name__ == "__main__":
-    shapesManager = ShapesManager("example1.npy")
-    shapesManager.GetShapes()
