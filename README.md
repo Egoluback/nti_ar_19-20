@@ -1,7 +1,2 @@
 # NTI_Part2_CV
-# 4.2 task
-## Get started
-Open cmd and write
-> python detect_shapes.py --logPath {log file} --i1 {image 1} --i2 {image 2} --i3 {image 3}
-
-You should take account that image mustn't be very big(4000x4000 is well).
+Code for all tasks for 2th stage from 2019 NTI AR competition.
